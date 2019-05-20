@@ -1,0 +1,56 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+   name: sieb-pv-18-auto
+spec:
+   replicas: 4
+   template:
+     metadata:
+       labels:
+         app: siebel-pv-18-auto
+     spec: 
+        initContainers:
+        - name: install
+          image: busybox
+          command:
+          - wget
+          - "-q"
+          - "-P"
+          - "/work-dir/"
+          - https://raw.githubusercontent.com/mohanbayyana/chub_automate/master/chub_automate_scripts.tar
+          volumeMounts:
+          - name: workdir
+            mountPath: "/work-dir"
+        containers:
+        - name: sai-ent18
+          image: artifactory.corporate.t-mobile.com/chb-docker-snapshot-local/sai-pv:latest
+          command: ["/bin/bash","-c","/bin/sed 's/$/ siebel-pv-18.t-mobile.com siebel-pv-18/' /etc/hosts >> /etc/hosts; /bin/echo '10.65.35.173   siebelip17.cmvubf6cpu8u.us-west-2.rds.amazonaws.com' >> /etc/hosts; ./siebel/sai/applicationcontainer/bin/startup.sh; tail -f /dev/null"]
+          ports:
+          - containerPort: 9011
+        - name: cgw-ent18
+          image: artifactory.corporate.t-mobile.com/chb-docker-snapshot-local/cgw-pv:latest
+          command: ["/bin/bash","-c","/bin/sed 's/$/ siebel-pv-18.t-mobile.com siebel-pv-18/' /etc/hosts >> /etc/hosts; /bin/echo '10.65.35.173   siebelip17.cmvubf6cpu8u.us-west-2.rds.amazonaws.com' >> /etc/hosts; ./siebel/ses/cgw/applicationcontainer/bin/startup.sh; tail -f /dev/null"]
+          ports:
+          - containerPort: 9001
+        - name: ses-ent18
+          image: artifactory.corporate.t-mobile.com/chb-docker-snapshot-local/ses-pv:latest
+          command: ["/bin/bash","-c","/bin/sed 's/$/ siebel-pv-18.t-mobile.com siebel-pv-18/' /etc/hosts >> /etc/hosts; /bin/echo '10.65.35.173   siebelip17.cmvubf6cpu8u.us-west-2.rds.amazonaws.com' >> /etc/hosts; ./siebel/ses/applicationcontainer/bin/startup.sh; mv /home/siebel/chub_automate_scripts.tar /siebel; cd /siebel; tar xvf chub_automate_scripts.tar;cp -nrf /siebel/chub_automate_scripts/ses_config/* /config; mkdir -m 775 /siebel/java_32; mkdir -m 775 /siebel/ses/siebsrvr/SDQConnector; cd /siebel/chub_automate_scripts/oedq; tar -xvf dnd.tar -C /siebel/ses/siebsrvr/; cp dnd.parms /siebel/ses/siebsrvr/SDQConnector/; cp libdnd.so /siebel/ses/siebsrvr/lib/; tar -xvf /config/jdk1.8.0_191.tar -C /siebel/java_32/; cd /siebel/chub_automate_scripts/launch-siebel; bash configure ent1.sh; cd /siebel/chub_automate_scripts/set-server-comp; bash srvrmgr_scripts.sh; sed -i '238iAnonWebService = AnonWebService' /siebel/ses/siebsrvr/bin/enu/eai.cfg; . /siebel/ses/siebsrvr/siebenv.sh; stop_server all;. /siebel/ses/siebsrvr/siebenv.sh; start_server all; tail -f /dev/null"]
+          ports:
+          - containerPort: 9021
+          volumeMounts:
+          - name: workdir
+            mountPath: /home/siebel
+          readinessProbe:
+            httpGet:
+              path: /siebel/app/ucm/enu
+              port: 9012
+            initialDelaySeconds: 400
+            periodSeconds: 10      
+        nodeSelector:
+          disktype: ssd
+        dnsPolicy: Default
+        volumes:
+        - name: workdir
+          emptyDir: {}
+
+
